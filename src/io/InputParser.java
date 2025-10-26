@@ -7,6 +7,7 @@ import exceptions.InvalidInputException;
 import java.io.*;
 import java.util.*;
 
+
 public class InputParser {
 
     public static List<Graph> readGraphs(String filename)
@@ -31,7 +32,7 @@ public class InputParser {
 
         List<Graph> graphs = new ArrayList<>();
         for (String graphStr : graphStrings) {
-            graphStr = graphStr.replace("{", "").replace("}", "");
+            // DON'T remove braces - needed for edge parsing!
 
             int id = extractInt(graphStr, "\"id\":");
             List<String> nodes = extractStringArray(graphStr, "\"nodes\":");
@@ -50,8 +51,12 @@ public class InputParser {
 
         for (int i = 0; i < content.length(); i++) {
             char c = content.charAt(i);
-            if (c == '{') braceCount++;
-            else if (c == '}') {
+            if (c == '{') {
+                if (braceCount == 0) {
+                    start = i;
+                }
+                braceCount++;
+            } else if (c == '}') {
                 braceCount--;
                 if (braceCount == 0) {
                     graphs.add(content.substring(start, i + 1));
@@ -66,8 +71,15 @@ public class InputParser {
     private static int extractInt(String json, String key) {
         int start = json.indexOf(key) + key.length();
         int end = json.indexOf(",", start);
-        if (end == -1) end = json.indexOf("}", start);
-        return Integer.parseInt(json.substring(start, end).trim());
+        if (end == -1) end = json.length();
+
+        String numStr = json.substring(start, end).trim();
+        // Remove any trailing }
+        if (numStr.endsWith("}")) {
+            numStr = numStr.substring(0, numStr.length() - 1).trim();
+        }
+
+        return Integer.parseInt(numStr);
     }
 
     private static List<String> extractStringArray(String json, String key) {
@@ -87,43 +99,103 @@ public class InputParser {
 
     private static List<Edge> extractEdges(String json) throws GraphException {
         List<Edge> edges = new ArrayList<>();
-        int edgesStart = json.indexOf("\"edges\":[") + 9;
-        int edgesEnd = json.indexOf("]", edgesStart);
-        String edgesContent = json.substring(edgesStart, edgesEnd);
 
+        // Find "edges" key
+        int edgesKeyPos = json.indexOf("\"edges\":");
+        if (edgesKeyPos == -1) {
+            return edges;
+        }
+
+        // Find array start
+        int arrayStart = json.indexOf("[", edgesKeyPos) + 1;
+        int arrayEnd = findMatchingBracket(json, arrayStart - 1);
+
+        if (arrayEnd == -1) {
+            return edges;
+        }
+
+        String edgesContent = json.substring(arrayStart, arrayEnd);
+
+        // Extract each edge object
         int braceCount = 0;
-        int start = 0;
-        List<String> edgeStrings = new ArrayList<>();
+        int start = -1;
 
         for (int i = 0; i < edgesContent.length(); i++) {
             char c = edgesContent.charAt(i);
-            if (c == '{') braceCount++;
-            else if (c == '}') {
-                braceCount--;
+
+            if (c == '{') {
                 if (braceCount == 0) {
-                    edgeStrings.add(edgesContent.substring(start, i + 1));
-                    start = i + 2;
+                    start = i;
+                }
+                braceCount++;
+            } else if (c == '}') {
+                braceCount--;
+                if (braceCount == 0 && start != -1) {
+                    String edgeStr = edgesContent.substring(start + 1, i);
+
+                    try {
+                        String from = extractStringValue(edgeStr, "\"from\":");
+                        String to = extractStringValue(edgeStr, "\"to\":");
+                        int weight = extractIntValue(edgeStr, "\"weight\":");
+
+                        edges.add(new Edge(from, to, weight));
+                    } catch (Exception e) {
+                        System.err.println("Warning: Failed to parse edge: " + edgeStr);
+                    }
+
+                    start = -1;
                 }
             }
-        }
-
-        for (String edgeStr : edgeStrings) {
-            edgeStr = edgeStr.replace("{", "").replace("}", "");
-
-            String from = extractString(edgeStr, "\"from\":");
-            String to = extractString(edgeStr, "\"to\":");
-            int weight = extractInt(edgeStr, "\"weight\":");
-
-            edges.add(new Edge(from, to, weight));
         }
 
         return edges;
     }
 
-    private static String extractString(String json, String key) {
-        int start = json.indexOf(key) + key.length();
-        int valueStart = json.indexOf("\"", start) + 1;
-        int valueEnd = json.indexOf("\"", valueStart);
-        return json.substring(valueStart, valueEnd);
+    private static int findMatchingBracket(String str, int openPos) {
+        int count = 1;
+        for (int i = openPos + 1; i < str.length(); i++) {
+            if (str.charAt(i) == '[') count++;
+            else if (str.charAt(i) == ']') {
+                count--;
+                if (count == 0) return i;
+            }
+        }
+        return -1;
+    }
+
+    private static String extractStringValue(String json, String key) {
+        int keyPos = json.indexOf(key);
+        if (keyPos == -1) return "";
+
+        int start = json.indexOf("\"", keyPos + key.length()) + 1;
+        int end = json.indexOf("\"", start);
+
+        return json.substring(start, end);
+    }
+
+    private static int extractIntValue(String json, String key) {
+        int keyPos = json.indexOf(key);
+        if (keyPos == -1) return 0;
+
+        int start = keyPos + key.length();
+
+        // Skip whitespace and colon
+        while (start < json.length() &&
+                (Character.isWhitespace(json.charAt(start)) || json.charAt(start) == ':')) {
+            start++;
+        }
+
+        // Skip whitespace after colon
+        while (start < json.length() && Character.isWhitespace(json.charAt(start))) {
+            start++;
+        }
+
+        int end = start;
+        while (end < json.length() &&
+                (Character.isDigit(json.charAt(end)) || json.charAt(end) == '-')) {
+            end++;
+        }
+
+        return Integer.parseInt(json.substring(start, end));
     }
 }

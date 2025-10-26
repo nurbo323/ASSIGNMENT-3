@@ -4,6 +4,8 @@ import model.Edge;
 import result.AlgorithmResult;
 import java.io.*;
 import java.util.List;
+import java.util.Locale;
+
 
 
 public class OutputWriter {
@@ -63,7 +65,7 @@ public class OutputWriter {
         sb.append("        ],\n");
         sb.append(String.format("        \"total_cost\": %d,\n", result.primResult.getTotalCost()));
         sb.append(String.format("        \"operations_count\": %d,\n", result.primResult.getOperationsCount()));
-        sb.append(String.format("        \"execution_time_ms\": %.2f\n", result.primResult.getExecutionTimeMs()));
+        sb.append(String.format(Locale.US, "        \"execution_time_ms\": %.2f\n", result.primResult.getExecutionTimeMs()));
         sb.append("      },\n");
 
         sb.append("      \"kruskal\": {\n");
@@ -72,12 +74,13 @@ public class OutputWriter {
         sb.append("        ],\n");
         sb.append(String.format("        \"total_cost\": %d,\n", result.kruskalResult.getTotalCost()));
         sb.append(String.format("        \"operations_count\": %d,\n", result.kruskalResult.getOperationsCount()));
-        sb.append(String.format("        \"execution_time_ms\": %.2f\n", result.kruskalResult.getExecutionTimeMs()));
+        sb.append(String.format(Locale.US, "        \"execution_time_ms\": %.2f\n", result.kruskalResult.getExecutionTimeMs()));
         sb.append("      }\n");
         sb.append("    }");
 
         return sb.toString();
     }
+
 
     private static void formatEdges(StringBuilder sb, List<Edge> edges) {
         for (int i = 0; i < edges.size(); i++) {
